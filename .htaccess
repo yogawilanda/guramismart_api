@@ -1,0 +1,7 @@
+# Setup hosting: arahkan semua request ke folder public/
+# Tidak berpengaruh di lokal (php artisan serve tidak membaca .htaccess)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
+</IfModule>
