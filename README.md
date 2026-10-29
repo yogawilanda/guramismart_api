@@ -1,58 +1,96 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# GuramiSmart API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Backend REST API untuk aplikasi **GuramiSmart** — sistem informasi budidaya ikan gurami (versi input manual). Dibangun dengan Laravel 13 + Sanctum.
 
-## About Laravel
+**Base URL produksi:** `https://guramismartapi.yogawilanda.com/api/v1`
+**Daftar endpoint lengkap:** lihat [`API.md`](API.md)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Fitur
+- Registrasi & login (token)
+- Siklus budidaya: luas kolam, tebar benih, modal awal, durasi otomatis
+- Panduan budidaya (6 bab)
+- Pencatatan pakan harian & kualitas air (suhu, pH) dengan status optimal/low/high
+- Panen & penjualan
+- Dashboard: modal vs penjualan, profit, ROI, rata-rata pakan, produktivitas/m², tren kualitas air
+- Notifikasi otomatis: pengingat pakan (07:00 & 16:00 WIB) dan pengingat panen
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Quick Start (Python)
 
-## Learning Laravel
+Semua endpoint wajib login, kecuali register & login. Login sekali → simpan token → kirim di setiap request.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+```python
+import requests
+import pandas as pd
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+BASE = "https://guramismartapi.yogawilanda.com/api/v1"
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+r = requests.post(f"{BASE}/auth/login",
+                  json={"email": "EMAIL_KAMU", "password": "PASSWORD_KAMU"},
+                  headers={"Accept": "application/json"})
+token = r.json()["token"]
 
-## Agentic Development
+H = {"Accept": "application/json", "Authorization": f"Bearer {token}"}
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+cycles = requests.get(f"{BASE}/cycles", headers=H).json()
+cid = cycles[0]["id"]
+dash = requests.get(f"{BASE}/cycles/{cid}/dashboard", headers=H).json()["data"]
 
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+pd.DataFrame(dash["water_trend"]).plot(x="date", y=["temperature_c", "ph"])
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+| Error | Arti |
+|---|---|
+| 401 | Token tidak terkirim / kedaluwarsa → login ulang, cek header `Authorization` |
+| 404 | Data tidak ada atau bukan milik akunmu |
+| 422 | Input ditolak → lihat `r.json()["errors"]` |
 
-## Contributing
+Akun demo (berisi data 2 siklus) tersedia — minta kredensialnya ke pengelola.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+---
 
-## Code of Conduct
+## Setup Lokal
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Kebutuhan: PHP 8.3+, Composer, MySQL.
 
-## Security Vulnerabilities
+```bash
+git clone https://github.com/yogawilanda/guramismart_api.git
+cd guramismart_api
+composer install
+cp .env.example .env
+php artisan key:generate
+# atur DB_* di .env, APP_TIMEZONE sudah Asia/Jakarta di config/app.php
+php artisan migrate
+php artisan db:seed --class=GuideSeeder
+php artisan db:seed --class=DemoSeeder   # opsional: akun demo
+php artisan serve
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+Scheduler lokal (terminal terpisah): `php artisan schedule:work`
 
-## License
+## Smoke Test
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Menguji 35 skenario (auth, isolasi data, validasi, panen, dashboard) terhadap server yang sedang berjalan:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\smoke.ps1
+```
+Atur `$base` di baris pertama `smoke.ps1` ke URL lokal atau produksi. Skrip membuat user tes `*@test.id`; hapus setelahnya di produksi.
+
+## Deploy (Hostinger)
+
+- `.htaccess` + `index.php` di root project mengarahkan semua request ke `public/`.
+- Di server: `composer install --no-dev -o`, `php artisan migrate --force`, `php artisan config:cache && php artisan route:cache`.
+- `.env` produksi: `APP_ENV=production`, `APP_DEBUG=false`.
+- Cron (setiap menit): `php /path/ke/project/artisan schedule:run`
+
+## Struktur Singkat
+```
+app/Http/Controllers/Api/V1/   Auth, Cycle, Guide, FeedLog, WaterLog, Harvest, Dashboard, Notification
+app/Models/                    User, Cycle, Guide, FeedLog, WaterLog, Harvest
+app/Services/                  CycleMetricsService (hitungan dashboard)
+app/Notifications/             FeedReminder, HarvestReminder
+config/guramismart.php         batas optimal air, target panen default, jam pengingat
+routes/api.php, routes/console.php
+```
