@@ -1,4 +1,4 @@
-$base = 'http://127.0.0.1:8000/api/v1'
+$base = 'https://guramismartapi.yogawilanda.com/api/v1'
 $script:pass = 0; $script:fail = 0
 
 function Call($method, $path, $body = $null, $token = $null) {
@@ -106,4 +106,5 @@ Check 'token lama ditolak -> 401' ($r.Status -eq 401) $r.Status
 
 ""
 "HASIL: $script:pass PASS, $script:fail FAIL"
+
 
